@@ -22,15 +22,25 @@ Visual Morse Decoder lets users input dots and dashes through buttons or keyboar
 
 ## Run Locally
 
-Open [index.html](index.html) directly in a browser, or serve the project locally.
+The app is intended to be run through a local static file server. Opening [index.html](index.html) directly in a browser may fail because the app is loaded as ES modules.
 
-Example:
+### Recommended way
+
+1. Start a local server with Python:
 
 ```bash
 python3 -m http.server 8000
 ```
 
-Then open http://localhost:8000.
+2. Open the app in your browser:
+
+```text
+http://localhost:8000/
+```
+
+### Alternative
+
+If you prefer to use a different local server, the same `http://localhost:8000/` flow applies.
 
 ## Project Files
 
