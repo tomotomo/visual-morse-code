@@ -220,10 +220,15 @@
       gap: 10px;
     }
 
-    #output-text {
-      width: 100%;
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .output-display {
       min-height: 160px;
-      resize: vertical;
       border-radius: 16px;
       background: rgba(1, 7, 4, 0.96);
       color: var(--text);
@@ -231,13 +236,51 @@
       padding: 14px;
       font-family: inherit;
       font-size: 1rem;
-      line-height: 1.55;
-      outline: none;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
-    #output-text:focus {
-      border-color: rgba(0, 255, 136, 0.35);
-      box-shadow: 0 0 12px rgba(0, 255, 136, 0.12);
+    .output-char {
+      transition: color 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease, text-shadow 0.12s ease;
+      border-radius: 4px;
+      padding: 0 2px;
+    }
+
+    .output-char.playing {
+      color: #04110a;
+      background: linear-gradient(180deg, rgba(0, 255, 136, 0.98), rgba(111, 255, 189, 0.95));
+      text-shadow: 0 0 10px rgba(0, 255, 136, 0.45);
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.18);
+    }
+
+    .output-empty {
+      color: #7cb798;
+      font-style: italic;
+    }
+
+    .play-mini {
+      border: 1px solid rgba(0, 255, 136, 0.28);
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(12, 26, 20, 0.98), rgba(7, 14, 12, 0.98));
+      color: var(--glow);
+      padding: 8px 12px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: none;
+      min-width: 52px;
+      cursor: pointer;
+      transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+    }
+
+    .play-mini:hover,
+    .play-mini:focus-visible {
+      transform: translateY(-1px);
+      border-color: rgba(0, 255, 136, 0.48);
+      box-shadow: 0 0 18px rgba(0, 255, 136, 0.18);
+      outline: none;
     }
 
     .button-row {
@@ -493,8 +536,11 @@
         </div>
 
         <div class="output-area">
-          <div class="status-label">Decoded Output</div>
-          <textarea id="output-text" spellcheck="false" aria-label="Decoded Morse output"></textarea>
+          <div class="output-header">
+            <div class="status-label">Decoded Output</div>
+            <button id="play-output-btn" class="play-mini" type="button" aria-label="Play decoded output">▶ Play</button>
+          </div>
+          <div id="output-display" class="output-display" aria-live="polite"></div>
         </div>
 
         <div class="button-row">
@@ -588,18 +634,167 @@
     const inputBuffer = document.getElementById('input-buffer');
     const progressFill = document.getElementById('progress-fill');
     const timerLabel = document.getElementById('timer-label');
-    const outputText = document.getElementById('output-text');
+    const outputDisplay = document.getElementById('output-display');
+    const playOutputBtn = document.getElementById('play-output-btn');
     const dotBtn = document.getElementById('dot-btn');
     const dashBtn = document.getElementById('dash-btn');
     const clearBtn = document.getElementById('clear-btn');
 
     const TIMER_MS = 1000;
     const TIMER_TICK = 50;
+    const MORSE_MAP = {
+      A: '.-', B: '-...', C: '-.-.', D: '-..', E: '.', F: '..-.', G: '--.', H: '....',
+      I: '..', J: '.---', K: '-.-', L: '.-..', M: '--', N: '-.', O: '---', P: '.--.',
+      Q: '--.-', R: '.-.', S: '...', T: '-', U: '..-', V: '...-', W: '.--', X: '-..-',
+      Y: '-.--', Z: '--..', 0: '-----', 1: '.----', 2: '..---', 3: '...--', 4: '....-',
+      5: '.....', 6: '-....', 7: '--...', 8: '---..', 9: '----.'
+    };
+    const DOT_DURATION = 0.08;
+    const DASH_DURATION = 0.24;
+    const SYMBOL_GAP = 0.04;
+    const CHAR_GAP = 0.12;
+    const WORD_GAP = 0.28;
+
     let currentPath = '';
     let timerHandle = null;
     let timerStart = 0;
-    let timerLast = 0;
-    let currentNode = morseTree;
+    let currentOutput = '';
+    let activeOutputIndex = -1;
+    let playbackTimeouts = [];
+    let playbackOscillators = [];
+    let audioContext = null;
+
+    function getAudioContext() {
+      if (!audioContext) {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) {
+          return null;
+        }
+        audioContext = new AudioContextCtor();
+      }
+      return audioContext;
+    }
+
+    function stopPlayback() {
+      playbackTimeouts.forEach((handle) => clearTimeout(handle));
+      playbackTimeouts = [];
+      playbackOscillators.forEach((oscillator) => {
+        try {
+          oscillator.stop();
+        } catch (error) {
+          // ignore
+        }
+      });
+      playbackOscillators = [];
+      activeOutputIndex = -1;
+      renderOutput(currentOutput, activeOutputIndex);
+      if (audioContext) {
+        audioContext.close().catch(() => {});
+        audioContext = null;
+      }
+    }
+
+    function renderOutput(text, activeIndex = -1) {
+      outputDisplay.innerHTML = '';
+      if (!text) {
+        const empty = document.createElement('span');
+        empty.className = 'output-empty';
+        empty.textContent = '(empty)';
+        outputDisplay.appendChild(empty);
+        return;
+      }
+
+      [...text].forEach((char, index) => {
+        const span = document.createElement('span');
+        span.className = 'output-char';
+        span.textContent = char;
+        if (index === activeIndex) {
+          span.classList.add('playing');
+        }
+        outputDisplay.appendChild(span);
+      });
+    }
+
+    function scheduleTone(ctx, startTime, duration, frequency) {
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, startTime);
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, startTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration + 0.02);
+      playbackOscillators.push(oscillator);
+      return startTime + duration + SYMBOL_GAP;
+    }
+
+    function playImmediateSymbol(symbol) {
+      const ctx = getAudioContext();
+      if (!ctx) {
+        return;
+      }
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const startTime = ctx.currentTime;
+      const duration = symbol === '.' ? DOT_DURATION : DASH_DURATION;
+      const frequency = symbol === '.' ? 760 : 700;
+      scheduleTone(ctx, startTime, duration, frequency);
+    }
+
+    function playMorseText(text) {
+      stopPlayback();
+      const ctx = getAudioContext();
+      if (!ctx || !text) {
+        return;
+      }
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const normalized = text.trim();
+      if (!normalized) {
+        return;
+      }
+
+      currentOutput = normalized;
+      renderOutput(currentOutput, -1);
+      let currentTime = ctx.currentTime;
+
+      for (let index = 0; index < normalized.length; index += 1) {
+        const char = normalized[index];
+        if (/\s/.test(char)) {
+          currentTime += WORD_GAP;
+          continue;
+        }
+
+        const morseCode = MORSE_MAP[char.toUpperCase()];
+        if (!morseCode) {
+          currentTime += CHAR_GAP;
+          continue;
+        }
+
+        const charStart = currentTime;
+        playbackTimeouts.push(setTimeout(() => {
+          activeOutputIndex = index;
+          renderOutput(normalized, activeOutputIndex);
+        }, charStart * 1000));
+
+        for (const symbol of morseCode) {
+          currentTime = scheduleTone(ctx, currentTime, symbol === '.' ? DOT_DURATION : DASH_DURATION, symbol === '.' ? 760 : 700);
+        }
+
+        currentTime += CHAR_GAP;
+      }
+
+      playbackTimeouts.push(setTimeout(() => {
+        stopPlayback();
+      }, (currentTime - ctx.currentTime) * 1000));
+    }
 
     function isValidPath(path) {
       let node = morseTree;
@@ -648,17 +843,20 @@
     }
 
     function clearAll() {
+      stopPlayback();
       currentPath = '';
       resetTimer();
       inputBuffer.textContent = '(waiting)';
       inputBuffer.classList.remove('error');
-      outputText.value = '';
+      currentOutput = '';
+      renderOutput(currentOutput, -1);
       updateVisualization();
     }
 
     function appendSymbol(symbol) {
       currentPath += symbol;
       inputBuffer.textContent = currentPath;
+      playImmediateSymbol(symbol);
       updateVisualization();
       startTimer();
     }
@@ -676,7 +874,8 @@
         return;
       }
       inputBuffer.classList.remove('error');
-      outputText.value += decoded;
+      currentOutput += decoded;
+      renderOutput(currentOutput, -1);
       currentPath = '';
       inputBuffer.textContent = '(waiting)';
       updateVisualization();
@@ -797,6 +996,7 @@
 
     dotBtn.addEventListener('click', () => appendSymbol('.'));
     dashBtn.addEventListener('click', () => appendSymbol('-'));
+    playOutputBtn.addEventListener('click', () => playMorseText(currentOutput));
     clearBtn.addEventListener('click', clearAll);
 
     window.addEventListener('keydown', (event) => {
@@ -816,6 +1016,7 @@
       }
     });
 
+    renderOutput(currentOutput, -1);
     renderTree();
     updateVisualization();
   </script>
