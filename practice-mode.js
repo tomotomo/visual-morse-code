@@ -12,6 +12,8 @@ export function createPracticeMode(elements) {
   let activeOutputIndex = -1;
   let timerHandle = null;
   let timerStart = 0;
+  let errorRecoveryHandle = null;
+  let isErrorState = false;
 
   function renderOutput() {
     elements.outputDisplay.innerHTML = '';
@@ -40,6 +42,27 @@ export function createPracticeMode(elements) {
     timerHandle = null;
     elements.progressFill.style.width = '0%';
     elements.timerLabel.textContent = '1.0s';
+  }
+
+  function clearErrorRecovery() {
+    clearTimeout(errorRecoveryHandle);
+    errorRecoveryHandle = null;
+  }
+
+  function resetErrorState() {
+    isErrorState = false;
+    clearErrorRecovery();
+    elements.inputBuffer.classList.remove('error');
+  }
+
+  function scheduleErrorRecovery() {
+    clearErrorRecovery();
+    errorRecoveryHandle = setTimeout(() => {
+      currentPath = '';
+      elements.inputBuffer.textContent = '(waiting)';
+      resetErrorState();
+      updateVisualization();
+    }, TIMER_MS);
   }
 
   function startTimer() {
@@ -214,12 +237,15 @@ export function createPracticeMode(elements) {
 
     const decoded = getDecodedChar(currentPath);
     if (!decoded) {
+      isErrorState = true;
       elements.inputBuffer.classList.add('error');
       elements.inputBuffer.textContent = currentPath;
+      scheduleErrorRecovery();
+      updateVisualization();
       return;
     }
 
-    elements.inputBuffer.classList.remove('error');
+    resetErrorState();
     currentOutput += decoded;
     renderOutput();
     currentPath = '';
@@ -233,13 +259,18 @@ export function createPracticeMode(elements) {
     currentOutput = '';
     activeOutputIndex = -1;
     resetTimer();
+    resetErrorState();
     elements.inputBuffer.textContent = '(waiting)';
-    elements.inputBuffer.classList.remove('error');
     renderOutput();
     updateVisualization();
   }
 
   function appendSymbol(symbol) {
+    if (isErrorState) {
+      currentPath = '';
+      resetErrorState();
+    }
+
     currentPath += symbol;
     elements.inputBuffer.textContent = currentPath;
     audioPlayer.playImmediateSymbol(symbol);
