@@ -117,8 +117,8 @@ const morseTree = {
         dash: {
             id: "A", label: "A", type: "dash", x: 300, y: 200,
             dot: {
-                id: "R", label: "R", type: "dot", x: 300, y: 280,
-                dot: { id: "L", label: "L", type: "dot", x: 250, y: 280 }
+                id: "R", label: "R", type: "dot", x: 360, y: 200, // 【修正1】Aの右に移動
+                dot: { id: "L", label: "L", type: "dot", x: 360, y: 260 } // 【修正1】Aの右、かつRの下に移動
             },
             dash: {
                 id: "W", label: "W", type: "dash", x: 300, y: 360,
@@ -140,9 +140,9 @@ const morseTree = {
                 dash: { id: "X", label: "X", type: "dash", x: 560, y: 380 }
             },
             dash: {
-                id: "K", label: "K", type: "dash", x: 580, y: 260,
-                dot: { id: "C", label: "C", type: "dot", x: 580, y: 340 },
-                dash: { id: "Y", label: "Y", type: "dash", x: 660, y: 260 }
+                id: "K", label: "K", type: "dash", x: 440, y: 260, // 【修正2】Nの左に移動
+                dot: { id: "C", label: "C", type: "dot", x: 440, y: 320, }, // 【修正2】Nの左に移動
+                dash: { id: "Y", label: "Y", type: "dash", x: 380, y: 260 } // 【修正2】Nの左、かつKの左に移動
             }
         },
         dash: {
