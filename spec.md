@@ -104,28 +104,32 @@ const morseTree = {
         dot: {
             id: "I", label: "I", type: "dot", x: 200, y: 100,
             dot: {
-                id: "S", label: "S", type: "dot", x: 140, y: 100,
-                dot: { id: "H", label: "H", type: "dot", x: 90, y: 100, dot: { id: "5", label: "5", type: "dot", x: 50, y: 100 }, dash: { id: "4", label: "4", type: "dash", x: 50, y: 130 } },
-                dash: { id: "V", label: "V", type: "dash", x: 140, y: 160, dash: { id: "3", label: "3", type: "dash", x: 140, y: 200 } }
+                id: "S", label: "S", type: "dot", x: 120, y: 100, // 【リバランス】140 → 120 へ左シフト
+                dot: { 
+                    id: "H", label: "H", type: "dot", x: 70, y: 100, // 【連動修正】90 → 70
+                    dot: { id: "5", label: "5", type: "dot", x: 20, y: 100 }, // 【連動修正】50 → 20
+                    dash: { id: "4", label: "4", type: "dash", x: 70, y: 160 } // 【連動修正】90 → 70
+                },
+                dash: { id: "V", label: "V", type: "dash", x: 120, y: 240, dash: { id: "3", label: "3", type: "dash", x: 120, y: 320 } } // 【連動修正】140 → 120
             },
             dash: {
-                id: "U", label: "U", type: "dash", x: 200, y: 160,
-                dot: { id: "F", label: "F", type: "dot", x: 200, y: 220 },
-                dash: { id: "_U", label: "", type: "dash", x: 250, y: 160, dash: { id: "2", label: "2", type: "dash", x: 250, y: 200 } }
+                id: "U", label: "U", type: "dash", x: 200, y: 180,
+                dot: { id: "F", label: "F", type: "dot", x: 160, y: 180 }, // 【本丸修正】170 → 160 で左右に40pxずつの完璧なマージンを確保
+                dash: { id: "_U", label: "", type: "dash", x: 200, y: 260, dash: { id: "2", label: "2", type: "dash", x: 200, y: 320 } }
             }
         },
         dash: {
             id: "A", label: "A", type: "dash", x: 300, y: 200,
             dot: {
-                id: "R", label: "R", type: "dot", x: 360, y: 200, // 【修正1】Aの右に移動
-                dot: { id: "L", label: "L", type: "dot", x: 360, y: 260 } // 【修正1】Aの右、かつRの下に移動
+                id: "R", label: "R", type: "dot", x: 340, y: 240,
+                dot: { id: "L", label: "L", type: "dot", x: 340, y: 300 } 
             },
             dash: {
-                id: "W", label: "W", type: "dash", x: 300, y: 360,
-                dot: { id: "P", label: "P", type: "dot", x: 250, y: 360 },
+                id: "W", label: "W", type: "dash", x: 300, y: 340,
+                dot: { id: "P", label: "P", type: "dot", x: 240, y: 340 },
                 dash: {
                     id: "J", label: "J", type: "dash", x: 300, y: 440,
-                    dash: { id: "1", label: "1", type: "dash", x: 300, y: 500 }
+                    dash: { id: "1", label: "1", type: "dash", x: 300, y: 520 }
                 }
             }
         }
@@ -133,23 +137,23 @@ const morseTree = {
     dash: {
         id: "T", label: "T", type: "dash", x: 500, y: 100,
         dot: {
-            id: "N", label: "N", type: "dot", x: 500, y: 260,
+            id: "N", label: "N", type: "dot", x: 500, y: 200,
             dot: {
-                id: "D", label: "D", type: "dot", x: 500, y: 380,
-                dot: { id: "B", label: "B", type: "dot", x: 500, y: 460, dot: { id: "6", label: "6", type: "dot", x: 500, y: 520 } },
-                dash: { id: "X", label: "X", type: "dash", x: 560, y: 380 }
+                id: "D", label: "D", type: "dot", x: 500, y: 340,
+                dot: { id: "B", label: "B", type: "dot", x: 500, y: 440, dot: { id: "6", label: "6", type: "dot", x: 500, y: 520 } },
+                dash: { id: "X", label: "X", type: "dash", x: 560, y: 340 }
             },
             dash: {
-                id: "K", label: "K", type: "dash", x: 440, y: 260, // 【修正2】Nの左に移動
-                dot: { id: "C", label: "C", type: "dot", x: 440, y: 320, }, // 【修正2】Nの左に移動
-                dash: { id: "Y", label: "Y", type: "dash", x: 380, y: 260 } // 【修正2】Nの左、かつKの左に移動
+                id: "K", label: "K", type: "dash", x: 460, y: 240,
+                dot: { id: "C", label: "C", type: "dot", x: 460, y: 300 }, 
+                dash: { id: "Y", label: "Y", type: "dash", x: 410, y: 240 } 
             }
         },
         dash: {
             id: "M", label: "M", type: "dash", x: 600, y: 100,
             dot: {
                 id: "G", label: "G", type: "dot", x: 600, y: 180,
-                dot: { id: "Z", label: "Z", type: "dot", x: 600, y: 240, dot: { id: "7", label: "7", type: "dot", x: 600, y: 300 } },
+                dot: { id: "Z", label: "Z", type: "dot", x: 600, y: 260, dot: { id: "7", label: "7", type: "dot", x: 600, y: 320 } },
                 dash: { id: "Q", label: "Q", type: "dash", x: 660, y: 180 }
             },
             dash: {
