@@ -27,7 +27,8 @@
       background:
         radial-gradient(circle at top, rgba(0, 255, 136, 0.06), transparent 30%),
         linear-gradient(180deg, #040705, #0a0f0d 50%, #020503);
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     body::after {
@@ -97,6 +98,7 @@
       position: relative;
       border-radius: 18px;
       overflow: hidden;
+      height: 560px;
       min-height: 560px;
       background: linear-gradient(180deg, rgba(11, 22, 16, 0.96), rgba(5, 10, 8, 0.98));
       border: 1px solid rgba(0, 255, 136, 0.16);
@@ -347,12 +349,100 @@
         grid-template-columns: 1fr;
       }
 
+      .app {
+        padding: 16px;
+      }
+
+      .panel {
+        padding: 16px;
+      }
+
       .button-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .svg-shell {
-        min-height: 460px;
+        height: 380px;
+        min-height: 380px;
+      }
+
+      #output-text {
+        min-height: 130px;
+      }
+
+      .hint {
+        font-size: 0.8rem;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .app {
+        padding: 10px;
+        gap: 12px;
+      }
+
+      .layout {
+        gap: 10px;
+      }
+
+      .panel {
+        padding: 12px;
+      }
+
+      .tree-panel,
+      .controls {
+        gap: 8px;
+      }
+
+      .status-row,
+      .timer-box,
+      .output-area {
+        gap: 6px;
+      }
+
+      .header h1 {
+        font-size: 1.1rem;
+        letter-spacing: 0.2rem;
+      }
+
+      .button-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .clear {
+        grid-column: 1 / -1;
+      }
+
+      button {
+        padding: 10px 8px;
+        font-size: 0.9rem;
+      }
+
+      .svg-shell {
+        height: 240px;
+        min-height: 240px;
+      }
+
+      #output-text {
+        min-height: 84px;
+        padding: 10px;
+        font-size: 0.95rem;
+      }
+
+      .buffer-display {
+        min-height: 40px;
+        padding: 8px 10px;
+      }
+
+      .progress-track {
+        height: 8px;
+      }
+
+      .status-label,
+      .timer-header,
+      .hint {
+        font-size: 0.74rem;
       }
     }
   </style>
@@ -361,7 +451,6 @@
   <main class="app">
     <section class="header">
       <h1>VISUAL MORSE DECODER</h1>
-      <p>モールス信号を入力すると、デコーダーツリー上で経路が発光し、入力の確定と同時に文字へ変換されます。</p>
     </section>
 
     <section class="layout">
@@ -370,10 +459,8 @@
           <svg id="morse-svg" class="svg-wrap" viewBox="0 0 900 560" role="img" aria-label="Morse decoder tree"></svg>
         </div>
         <div class="legend">
-          <span class="legend-item"><span class="legend-dot"></span>ノード</span>
-          <span class="legend-item"><span class="legend-line"></span>経路</span>
-          <span class="legend-item">短点: . / F / J / [Dot]</span>
-          <span class="legend-item">長点: - / D / K / [Dash]</span>
+          <span class="legend-item"><span class="legend-dot"></span>Node</span>
+          <span class="legend-item"><span class="legend-line"></span>Path</span>
         </div>
       </div>
 
@@ -399,8 +486,8 @@
         </div>
 
         <div class="button-row">
-          <button id="dot-btn" type="button">・ (Dot)</button>
-          <button id="dash-btn" type="button">ー (Dash)</button>
+          <button id="dot-btn" type="button">・<br>(Dot)</button>
+          <button id="dash-btn" type="button">ー<br>(Dash)</button>
           <button id="clear-btn" class="clear" type="button">Clear</button>
         </div>
 
@@ -588,24 +675,23 @@
       defs.appendChild(glow);
       svg.appendChild(defs);
 
+      const edgeElements = [];
+      const nodeElements = [];
+
+      function findNodeById(id) {
+        const stack = [morseTree];
+        while (stack.length) {
+          const current = stack.pop();
+          if (!current) continue;
+          if (current.id === id) return current;
+          if (current.dot) stack.push(current.dot);
+          if (current.dash) stack.push(current.dash);
+        }
+        return morseTree;
+      }
+
       function walk(node, parentId = null) {
         if (!node) return;
-
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('id', `node-${node.id}`);
-        circle.setAttribute('class', 'node');
-        circle.setAttribute('cx', node.x);
-        circle.setAttribute('cy', node.y);
-        circle.setAttribute('r', node.id === 'START' ? 10 : 14);
-
-        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        label.setAttribute('class', node.id === 'START' ? 'label-root' : 'label');
-        label.setAttribute('x', node.x);
-        label.setAttribute('y', node.y + 5);
-        label.textContent = node.label;
-
-        svg.appendChild(circle);
-        svg.appendChild(label);
 
         if (parentId && node.id !== 'START') {
           const parent = findNodeById(parentId);
@@ -616,7 +702,7 @@
           edge.setAttribute('y1', parent.y);
           edge.setAttribute('x2', node.x);
           edge.setAttribute('y2', node.y);
-          svg.appendChild(edge);
+          edgeElements.push(edge);
 
           if (node.type === 'dash') {
             const dx = node.x - parent.x;
@@ -634,27 +720,32 @@
             bar.setAttribute('height', 10);
             bar.setAttribute('rx', 5);
             bar.setAttribute('transform', `rotate(${angle} ${cx} ${cy})`);
-            svg.appendChild(bar);
+            edgeElements.push(bar);
           }
         }
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('id', `node-${node.id}`);
+        circle.setAttribute('class', 'node');
+        circle.setAttribute('cx', node.x);
+        circle.setAttribute('cy', node.y);
+        circle.setAttribute('r', node.id === 'START' ? 10 : 14);
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('class', node.id === 'START' ? 'label-root' : 'label');
+        label.setAttribute('x', node.x);
+        label.setAttribute('y', node.y + 5);
+        label.textContent = node.label;
+
+        nodeElements.push(circle, label);
 
         if (node.dot) walk(node.dot, node.id);
         if (node.dash) walk(node.dash, node.id);
       }
 
-      function findNodeById(id) {
-        const stack = [morseTree];
-        while (stack.length) {
-          const current = stack.pop();
-          if (!current) continue;
-          if (current.id === id) return current;
-          if (current.dot) stack.push(current.dot);
-          if (current.dash) stack.push(current.dash);
-        }
-        return morseTree;
-      }
-
       walk(morseTree);
+      edgeElements.forEach((el) => svg.appendChild(el));
+      nodeElements.forEach((el) => svg.appendChild(el));
     }
 
     function updateVisualization() {
