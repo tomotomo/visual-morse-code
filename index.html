@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Visual Morse Decoder</title>
+  <style>
+    :root {
+      --bg: #0a0f0d;
+      --panel: rgba(10, 15, 13, 0.92);
+      --ink: #1b4332;
+      --glow: #00ff88;
+      --danger: #ff3333;
+      --text: #b8ffcf;
+      --shadow: 0 0 18px rgba(0, 255, 136, 0.22);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top, rgba(0, 255, 136, 0.06), transparent 30%),
+        linear-gradient(180deg, #040705, #0a0f0d 50%, #020503);
+      overflow: hidden;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: repeating-linear-gradient(0deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02) 1px, transparent 1px, transparent 3px);
+      opacity: 0.2;
+      pointer-events: none;
+      mix-blend-mode: screen;
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .header {
+      text-align: center;
+      padding: 8px 12px 12px;
+      border: 1px solid rgba(0, 255, 136, 0.18);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(14, 23, 20, 0.98), rgba(8, 13, 11, 0.88));
+      box-shadow: var(--shadow);
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 2vw, 2rem);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--glow);
+      text-shadow: 0 0 10px rgba(0, 255, 136, 0.35);
+    }
+
+    .header p {
+      margin: 8px 0 0;
+      color: #78c4a2;
+      font-size: 0.95rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .panel {
+      border: 1px solid rgba(0, 255, 136, 0.18);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .tree-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .svg-shell {
+      position: relative;
+      border-radius: 18px;
+      overflow: hidden;
+      min-height: 560px;
+      background: linear-gradient(180deg, rgba(11, 22, 16, 0.96), rgba(5, 10, 8, 0.98));
+      border: 1px solid rgba(0, 255, 136, 0.16);
+    }
+
+    .svg-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(0, 255, 136, 0.05), transparent 40%);
+      pointer-events: none;
+    }
+
+    .svg-wrap {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .legend {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 0.85rem;
+      color: #8ad8b5;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .legend-dot,
+    .legend-line {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 255, 136, 0.35);
+      background: rgba(0, 255, 136, 0.18);
+    }
+
+    .legend-line {
+      border-radius: 3px;
+      height: 3px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 16px;
+    }
+
+    .status-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .status-label {
+      color: #8ad8b5;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .buffer-display {
+      border: 1px solid rgba(0, 255, 136, 0.16);
+      background: rgba(1, 7, 4, 0.92);
+      border-radius: 16px;
+      padding: 12px 14px;
+      font-size: 1.1rem;
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      transition: border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .buffer-display.error {
+      color: var(--danger);
+      border-color: rgba(255, 51, 51, 0.7);
+      box-shadow: 0 0 18px rgba(255, 51, 51, 0.12);
+      animation: flash 0.4s ease-in-out 2;
+    }
+
+    .timer-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .timer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: #8ad8b5;
+    }
+
+    .progress-track {
+      height: 10px;
+      background: rgba(27, 67, 50, 0.8);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 255, 136, 0.15);
+    }
+
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(0, 255, 136, 0.85), rgba(112, 255, 190, 0.95));
+      box-shadow: 0 0 12px rgba(0, 255, 136, 0.5);
+      transition: width 0.1s linear;
+    }
+
+    .output-area {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #output-text {
+      width: 100%;
+      min-height: 160px;
+      resize: vertical;
+      border-radius: 16px;
+      background: rgba(1, 7, 4, 0.96);
+      color: var(--text);
+      border: 1px solid rgba(0, 255, 136, 0.12);
+      padding: 14px;
+      font-family: inherit;
+      font-size: 1rem;
+      line-height: 1.55;
+      outline: none;
+    }
+
+    #output-text:focus {
+      border-color: rgba(0, 255, 136, 0.35);
+      box-shadow: 0 0 12px rgba(0, 255, 136, 0.12);
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    button {
+      border: 1px solid rgba(0, 255, 136, 0.2);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(17, 33, 25, 0.98), rgba(8, 13, 10, 0.98));
+      color: var(--text);
+      padding: 14px 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+    }
+
+    button:hover,
+    button:focus-visible {
+      transform: translateY(-1px);
+      border-color: rgba(0, 255, 136, 0.4);
+      box-shadow: 0 0 18px rgba(0, 255, 136, 0.16);
+      outline: none;
+    }
+
+    button.clear {
+      background: linear-gradient(180deg, rgba(31, 12, 12, 0.98), rgba(16, 8, 8, 0.98));
+      border-color: rgba(255, 51, 51, 0.28);
+      color: #ffd5d5;
+    }
+
+    .hint {
+      margin-top: 6px;
+      color: #7db79a;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .node {
+      fill: #0a0f0d;
+      stroke: #1b4332;
+      stroke-width: 3px;
+      transition: all 0.2s ease;
+    }
+
+    .node.active {
+      stroke: var(--glow);
+      fill: var(--glow);
+      filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.9));
+    }
+
+    .edge {
+      stroke: #1b4332;
+      stroke-width: 2px;
+      fill: none;
+      transition: all 0.2s ease;
+    }
+
+    .edge.active {
+      stroke: var(--glow);
+      stroke-width: 4px;
+      filter: drop-shadow(0 0 6px rgba(0, 255, 136, 0.7));
+    }
+
+    .edge-dash {
+      stroke-width: 6px;
+    }
+
+    .edge-bar {
+      fill: #1b4332;
+      rx: 4;
+      transition: all 0.2s ease;
+      opacity: 0.85;
+    }
+
+    .edge-bar.active {
+      fill: var(--glow);
+      filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.8));
+    }
+
+    .label,
+    .label-root {
+      font-size: 14px;
+      fill: #8ad8b5;
+      text-anchor: middle;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      pointer-events: none;
+    }
+
+    .label-root {
+      fill: var(--glow);
+      font-size: 18px;
+      text-shadow: 0 0 10px rgba(0, 255, 136, 0.25);
+    }
+
+    @keyframes flash {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-2px); }
+      75% { transform: translateX(2px); }
+    }
+
+    @media (max-width: 960px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .button-row {
+        grid-template-columns: 1fr;
+      }
+
+      .svg-shell {
+        min-height: 460px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="header">
+      <h1>VISUAL MORSE DECODER</h1>
+      <p>モールス信号を入力すると、デコーダーツリー上で経路が発光し、入力の確定と同時に文字へ変換されます。</p>
+    </section>
+
+    <section class="layout">
+      <div class="panel tree-panel">
+        <div class="svg-shell">
+          <svg id="morse-svg" class="svg-wrap" viewBox="0 0 900 560" role="img" aria-label="Morse decoder tree"></svg>
+        </div>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-dot"></span>ノード</span>
+          <span class="legend-item"><span class="legend-line"></span>経路</span>
+          <span class="legend-item">短点: . / F / J / [Dot]</span>
+          <span class="legend-item">長点: - / D / K / [Dash]</span>
+        </div>
+      </div>
+
+      <div class="panel controls">
+        <div class="status-row">
+          <div class="status-label">Current Input</div>
+          <div id="input-buffer" class="buffer-display">(waiting)</div>
+        </div>
+
+        <div class="timer-box">
+          <div class="timer-header">
+            <span class="status-label">Autofill Timer</span>
+            <span id="timer-label">1.0s</span>
+          </div>
+          <div class="progress-track">
+            <div id="progress-fill" class="progress-fill"></div>
+          </div>
+        </div>
+
+        <div class="output-area">
+          <div class="status-label">Decoded Output</div>
+          <textarea id="output-text" spellcheck="false" aria-label="Decoded Morse output"></textarea>
+        </div>
+
+        <div class="button-row">
+          <button id="dot-btn" type="button">・ (Dot)</button>
+          <button id="dash-btn" type="button">ー (Dash)</button>
+          <button id="clear-btn" class="clear" type="button">Clear</button>
+        </div>
+
+        <div class="hint">
+          Keyboard: <strong>.</strong>/<strong>F</strong>/<strong>J</strong> = dot, <strong>-</strong>/<strong>D</strong>/<strong>K</strong> = dash, <strong>Space</strong> = commit, <strong>Escape</strong>/<strong>Backspace</strong> = clear
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const morseTree = {
+      id: 'START', label: '★', type: 'root', x: 400, y: 100,
+      dot: {
+        id: 'E', label: 'E', type: 'dot', x: 300, y: 100,
+        dot: {
+          id: 'I', label: 'I', type: 'dot', x: 200, y: 100,
+          dot: {
+            id: 'S', label: 'S', type: 'dot', x: 140, y: 100,
+            dot: { id: 'H', label: 'H', type: 'dot', x: 90, y: 100, dot: { id: '5', label: '5', type: 'dot', x: 50, y: 100 }, dash: { id: '4', label: '4', type: 'dash', x: 50, y: 130 } },
+            dash: { id: 'V', label: 'V', type: 'dash', x: 140, y: 160, dash: { id: '3', label: '3', type: 'dash', x: 140, y: 200 } }
+          },
+          dash: {
+            id: 'U', label: 'U', type: 'dash', x: 200, y: 160,
+            dot: { id: 'F', label: 'F', type: 'dot', x: 200, y: 220 },
+            dash: { id: '_U', label: '', type: 'dash', x: 250, y: 160, dash: { id: '2', label: '2', type: 'dash', x: 250, y: 200 } }
+          }
+        },
+        dash: {
+          id: 'A', label: 'A', type: 'dash', x: 300, y: 200,
+          dot: {
+            id: 'R', label: 'R', type: 'dot', x: 300, y: 280,
+            dot: { id: 'L', label: 'L', type: 'dot', x: 250, y: 280 }
+          },
+          dash: {
+            id: 'W', label: 'W', type: 'dash', x: 300, y: 360,
+            dot: { id: 'P', label: 'P', type: 'dot', x: 250, y: 360 },
+            dash: {
+              id: 'J', label: 'J', type: 'dash', x: 300, y: 440,
+              dash: { id: '1', label: '1', type: 'dash', x: 300, y: 500 }
+            }
+          }
+        }
+      },
+      dash: {
+        id: 'T', label: 'T', type: 'dash', x: 500, y: 100,
+        dot: {
+          id: 'N', label: 'N', type: 'dot', x: 500, y: 260,
+          dot: {
+            id: 'D', label: 'D', type: 'dot', x: 500, y: 380,
+            dot: { id: 'B', label: 'B', type: 'dot', x: 500, y: 460, dot: { id: '6', label: '6', type: 'dot', x: 500, y: 520 } },
+            dash: { id: 'X', label: 'X', type: 'dash', x: 560, y: 380 }
+          },
+          dash: {
+            id: 'K', label: 'K', type: 'dash', x: 580, y: 260,
+            dot: { id: 'C', label: 'C', type: 'dot', x: 580, y: 340 },
+            dash: { id: 'Y', label: 'Y', type: 'dash', x: 660, y: 260 }
+          }
+        },
+        dash: {
+          id: 'M', label: 'M', type: 'dash', x: 600, y: 100,
+          dot: {
+            id: 'G', label: 'G', type: 'dot', x: 600, y: 180,
+            dot: { id: 'Z', label: 'Z', type: 'dot', x: 600, y: 240, dot: { id: '7', label: '7', type: 'dot', x: 600, y: 300 } },
+            dash: { id: 'Q', label: 'Q', type: 'dash', x: 660, y: 180 }
+          },
+          dash: {
+            id: 'O', label: 'O', type: 'dash', x: 700, y: 100,
+            dot: { id: '_O1', label: '', type: 'dot', x: 700, y: 180, dot: { id: '8', label: '8', type: 'dot', x: 700, y: 240 } },
+            dash: {
+              id: '_O2', label: '', type: 'dash', x: 780, y: 100,
+              dot: { id: '9', label: '9', type: 'dot', x: 780, y: 180 },
+              dash: { id: '0', label: '0', type: 'dash', x: 840, y: 100 }
+            }
+          }
+        }
+      }
+    };
+
+    const svg = document.getElementById('morse-svg');
+    const inputBuffer = document.getElementById('input-buffer');
+    const progressFill = document.getElementById('progress-fill');
+    const timerLabel = document.getElementById('timer-label');
+    const outputText = document.getElementById('output-text');
+    const dotBtn = document.getElementById('dot-btn');
+    const dashBtn = document.getElementById('dash-btn');
+    const clearBtn = document.getElementById('clear-btn');
+
+    const TIMER_MS = 1000;
+    const TIMER_TICK = 50;
+    let currentPath = '';
+    let timerHandle = null;
+    let timerStart = 0;
+    let timerLast = 0;
+    let currentNode = morseTree;
+
+    function isValidPath(path) {
+      let node = morseTree;
+      for (const symbol of path) {
+        node = symbol === '.' ? node.dot : node.dash;
+        if (!node) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function getDecodedChar(path) {
+      let node = morseTree;
+      for (const symbol of path) {
+        node = symbol === '.' ? node.dot : node.dash;
+        if (!node) return null;
+      }
+      return node.label || null;
+    }
+
+    function resetTimer() {
+      clearInterval(timerHandle);
+      timerHandle = null;
+      progressFill.style.width = '0%';
+      timerLabel.textContent = '1.0s';
+    }
+
+    function startTimer() {
+      resetTimer();
+      timerStart = performance.now();
+      timerLast = timerStart;
+      timerHandle = setInterval(() => {
+        const now = performance.now();
+        const elapsed = now - timerStart;
+        const remaining = Math.max(0, TIMER_MS - elapsed);
+        const ratio = remaining / TIMER_MS;
+        progressFill.style.width = `${ratio * 100}%`;
+        timerLabel.textContent = `${(remaining / 1000).toFixed(1)}s`;
+        if (remaining <= 0) {
+          clearInterval(timerHandle);
+          timerHandle = null;
+          commitCurrentPath();
+        }
+      }, TIMER_TICK);
+    }
+
+    function clearAll() {
+      currentPath = '';
+      resetTimer();
+      inputBuffer.textContent = '(waiting)';
+      inputBuffer.classList.remove('error');
+      outputText.value = '';
+      updateVisualization();
+    }
+
+    function appendSymbol(symbol) {
+      currentPath += symbol;
+      inputBuffer.textContent = currentPath;
+      updateVisualization();
+      startTimer();
+    }
+
+    function commitCurrentPath() {
+      resetTimer();
+      if (!currentPath) {
+        updateVisualization();
+        return;
+      }
+      const decoded = getDecodedChar(currentPath);
+      if (!decoded) {
+        inputBuffer.classList.add('error');
+        inputBuffer.textContent = currentPath;
+        return;
+      }
+      inputBuffer.classList.remove('error');
+      outputText.value += decoded;
+      currentPath = '';
+      inputBuffer.textContent = '(waiting)';
+      updateVisualization();
+    }
+
+    function renderTree() {
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      const glow = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+      glow.setAttribute('id', 'glow');
+      const blur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
+      blur.setAttribute('stdDeviation', '3');
+      glow.appendChild(blur);
+      defs.appendChild(glow);
+      svg.appendChild(defs);
+
+      function walk(node, parentId = null) {
+        if (!node) return;
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('id', `node-${node.id}`);
+        circle.setAttribute('class', 'node');
+        circle.setAttribute('cx', node.x);
+        circle.setAttribute('cy', node.y);
+        circle.setAttribute('r', node.id === 'START' ? 10 : 14);
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('class', node.id === 'START' ? 'label-root' : 'label');
+        label.setAttribute('x', node.x);
+        label.setAttribute('y', node.y + 5);
+        label.textContent = node.label;
+
+        svg.appendChild(circle);
+        svg.appendChild(label);
+
+        if (parentId && node.id !== 'START') {
+          const parent = findNodeById(parentId);
+          const edge = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          edge.setAttribute('id', `edge-${parentId}-${node.id}`);
+          edge.setAttribute('class', node.type === 'dash' ? 'edge edge-dash' : 'edge');
+          edge.setAttribute('x1', parent.x);
+          edge.setAttribute('y1', parent.y);
+          edge.setAttribute('x2', node.x);
+          edge.setAttribute('y2', node.y);
+          svg.appendChild(edge);
+
+          if (node.type === 'dash') {
+            const dx = node.x - parent.x;
+            const dy = node.y - parent.y;
+            const cx = (parent.x + node.x) / 2;
+            const cy = (parent.y + node.y) / 2;
+            const length = Math.hypot(dx, dy);
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            bar.setAttribute('id', `edge-bar-${parentId}-${node.id}`);
+            bar.setAttribute('class', 'edge-bar');
+            bar.setAttribute('x', cx - length / 2);
+            bar.setAttribute('y', cy - 5);
+            bar.setAttribute('width', Math.max(24, length * 0.8));
+            bar.setAttribute('height', 10);
+            bar.setAttribute('rx', 5);
+            bar.setAttribute('transform', `rotate(${angle} ${cx} ${cy})`);
+            svg.appendChild(bar);
+          }
+        }
+
+        if (node.dot) walk(node.dot, node.id);
+        if (node.dash) walk(node.dash, node.id);
+      }
+
+      function findNodeById(id) {
+        const stack = [morseTree];
+        while (stack.length) {
+          const current = stack.pop();
+          if (!current) continue;
+          if (current.id === id) return current;
+          if (current.dot) stack.push(current.dot);
+          if (current.dash) stack.push(current.dash);
+        }
+        return morseTree;
+      }
+
+      walk(morseTree);
+    }
+
+    function updateVisualization() {
+      document.querySelectorAll('.node, .edge, .edge-bar').forEach(el => el.classList.remove('active'));
+      const startNode = document.getElementById('node-START');
+      if (startNode) startNode.classList.add('active');
+
+      if (!currentPath) {
+        inputBuffer.classList.remove('error');
+        return;
+      }
+
+      let current = morseTree;
+      let valid = true;
+      for (const symbol of currentPath) {
+        const next = symbol === '.' ? current.dot : current.dash;
+        if (!next) {
+          valid = false;
+          break;
+        }
+        const edge = document.getElementById(`edge-${current.id}-${next.id}`);
+        const bar = document.getElementById(`edge-bar-${current.id}-${next.id}`);
+        if (edge) edge.classList.add('active');
+        if (bar) bar.classList.add('active');
+        const node = document.getElementById(`node-${next.id}`);
+        if (node) node.classList.add('active');
+        current = next;
+      }
+
+      inputBuffer.classList.toggle('error', !valid);
+    }
+
+    dotBtn.addEventListener('click', () => appendSymbol('.'));
+    dashBtn.addEventListener('click', () => appendSymbol('-'));
+    clearBtn.addEventListener('click', clearAll);
+
+    window.addEventListener('keydown', (event) => {
+      const key = event.key;
+      if (['.', 'F', 'f', 'J', 'j'].includes(key)) {
+        event.preventDefault();
+        appendSymbol('.');
+      } else if (['-', 'D', 'd', 'K', 'k'].includes(key)) {
+        event.preventDefault();
+        appendSymbol('-');
+      } else if (key === ' ') {
+        event.preventDefault();
+        commitCurrentPath();
+      } else if (key === 'Escape' || key === 'Backspace') {
+        event.preventDefault();
+        clearAll();
+      }
+    });
+
+    renderTree();
+    updateVisualization();
+  </script>
+</body>
+</html>
